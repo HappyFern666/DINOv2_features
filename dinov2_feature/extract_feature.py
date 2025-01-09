@@ -50,17 +50,22 @@ print(dinov2_vitl14)
 # imgs_tensor = torch.zeros(4, 3, 448, 448, dtype=torch.float32)
 features = torch.zeros(4, patch_h * patch_w, feat_dim, device=device, dtype=torch.uint8)
 # 4 images, (4, 40*40, 1024)
+original_images = []
 imgs_tensor = torch.zeros(4, 3, patch_h * 14, patch_w * 14)
+
 for i in range(4):
     list_frame = [2049, 3565, 3596, 3609]
-    img_path = f"/home/xuchuan/test_image/frame_{list_frame[i]}_rgb.png"
-    # img_path = f"/home/xuchuan/test_dino/image{i}.png"
+    # img_path = f"/home/xuchuan/DINOv2_features/dinov2_feature/test_image/frame_{list_frame[i]}_rgb.png"
+    img_path = f"/home/xuchuan/DINOv2_features/dinov2_feature/self_test/test{i}.jpg"
     img = Image.open(img_path).convert('RGB')
+    # img_rgb = np.array(img)[..., ::-1]
+    original_images.append(img)
     print(f"图片格式信息：")
     print(f"PIL格式: {img.mode}")
     print(f"数据类型: {np.array(img).dtype}")
     print(f"值范围: [{np.array(img).min()}, {np.array(img).max()}]")
     imgs_tensor[i] = transform(img)[:3]
+
 # to device
 imgs_tensor = imgs_tensor.to(device).half()
 
@@ -83,7 +88,7 @@ pca_features = pca.transform(features) # (6400, 3)
 # pca_features[:, 0] = (pca_features[:, 0] - pca_features[:, 0].min()) / (pca_features[:, 0].max() - pca_features[:, 0].min())
 
 # segment using the first component 用第一主成分分割前景后景
-pca_features_bg = pca_features[:, 0] > 10 # 背景
+pca_features_bg = pca_features[:, 0] > 4 # 背景
 pca_features_fg = ~pca_features_bg # 前景
 
 # PCA for only foreground patches
@@ -99,38 +104,33 @@ pca_features_rgb[pca_features_fg] = pca_features_rem
 
 pca_features_rgb = pca_features_rgb.reshape(4, patch_h, patch_w, 3)
 
-# ... 前面的代码保持不变 ...
+# 对特征可视化结果进行归一化
+def normalize_for_display(img):
+    img = img - img.min()  # 移到0为最小值
+    img = img / img.max()  # 缩放到[0,1]范围
+    return img
 
-# 创建一个大图，包含所有可视化内容
+# 创建一个大图，2行4列布局
 plt.figure(figsize=(20, 10))
 
-# 1. PCA组件的直方图 (第一行左侧)
-plt.subplot(2, 3, 1)
-plt.hist(pca_features[:, 0])
-plt.title('PCA Component 1')
-plt.subplot(2, 3, 2)
-plt.hist(pca_features[:, 1])
-plt.title('PCA Component 2')
-plt.subplot(2, 3, 3)
-plt.hist(pca_features[:, 2])
-plt.title('PCA Component 3')
-
-# 2. 前景/背景分割结果 (第二行左侧)
-plt.subplot(2, 3, 4)
+# 第一行显示原始图片
 for i in range(4):
-    plt.subplot(2, 6, 7+i)  # 在第二行的左半部分
-    plt.imshow(pca_features_bg[i * patch_h * patch_w: (i+1) * patch_h * patch_w].reshape(patch_h, patch_w))
-    plt.title(f'Seg Img {i+1}')
+    plt.subplot(2, 4, i+1)
+    img_rgb = np.array(original_images[i])
+    # 假设原始图片存储在变量 original_images 中
+    plt.imshow(img_rgb)  # 如果是PIL图像对象，直接使用
+    # 或者使用 plt.imshow(np.array(original_images[i])) 
+    plt.title(f'Original Image {i+1}')
     plt.axis('off')
 
-# 3. 最终的特征可视化 (第二行右侧)
+# 第二行显示特征可视化结果
 for i in range(4):
-    plt.subplot(2, 6, 10+i)  # 在第二行的右半部分
-    plt.imshow(pca_features_rgb[i][..., ::-1])
-    plt.title(f'Feature Img {i+1}')
+    plt.subplot(2, 4, i+5)  # 使用5,6,7,8位置
+    plt.imshow(normalize_for_display(pca_features_rgb[i][..., ::-1]))
+    plt.title(f'Feature Visualization {i+1}')
     plt.axis('off')
 
 plt.tight_layout()
-plt.savefig('all_visualizations.png', dpi=300, bbox_inches='tight')
+plt.savefig('photo_visualizations.png', dpi=300, bbox_inches='tight')
 plt.show()
 plt.close()
